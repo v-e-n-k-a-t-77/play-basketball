@@ -14,7 +14,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
     return;
   }
 
-  req.log.error({err}, "Unexpected error:");
+  req.log.error({ err }, "Unexpected error");
   res.status(500).json({
     error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
   });
