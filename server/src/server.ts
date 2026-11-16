@@ -1,8 +1,8 @@
 import { createApp } from "./app.js";
+import { env } from "./config/env.js";
 
-const PORT = 4000;
 const app = createApp();
 
-app.listen(PORT, () => {
-    console.log(`play basketball API is running on http://localhost:${PORT}`);
+app.listen(env.PORT, () => {
+    console.log(`play basketball API is running on http://localhost:${env.PORT}`);
 });
