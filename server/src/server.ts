@@ -1,12 +1,8 @@
-import express from "express";
+import { createApp } from "./app.js";
 
-const app= express();
-const PORT= 4000;
-
-app.get("/health", (_req,res) => {
-    res.json({ status: "ok"});
-});
+const PORT = 4000;
+const app = createApp();
 
 app.listen(PORT, () => {
-    console.log(`Play Baketball API running on http://localhost:${PORT}`);
+    console.log(`play basketball API is running on http://localhost:${PORT}`);
 });
