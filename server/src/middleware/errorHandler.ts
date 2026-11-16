@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { AppError } from "../lib/errors.js";
 
-export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
+export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   if (res.headersSent) {
     next(err);
     return;
@@ -14,7 +14,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     return;
   }
 
-  console.error("Unexpected error:", err);
+  req.log.error({err}, "Unexpected error:");
   res.status(500).json({
     error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
   });
