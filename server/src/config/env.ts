@@ -6,6 +6,7 @@ const envSchema = z.object({
   CLIENT_URL: z.string().url(),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
+  DB_POOL_MAX: z.coerce.number().int().positive().default(10),
 });
 
 const result = envSchema.safeParse(process.env);
