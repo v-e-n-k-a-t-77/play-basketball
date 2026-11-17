@@ -1,0 +1,55 @@
+-- Up Migration
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TYPE user_role AS ENUM ('PLAYER', 'ADMIN');
+CREATE TYPE player_position AS ENUM ('PG', 'SG', 'SF', 'PF', 'C', 'ANY');
+CREATE TYPE court_surface AS ENUM (
+  'OUTDOOR_CONCRETE', 'OUTDOOR_SYNTHETIC', 'INDOOR_WOODEN', 'INDOOR_SYNTHETIC', 'OTHER'
+);
+CREATE TYPE court_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+CREATE TYPE game_format AS ENUM ('HALF_COURT_3V3', 'FULL_COURT_5V5', 'OPEN_RUN');
+CREATE TYPE game_visibility AS ENUM ('PUBLIC', 'PRIVATE');
+CREATE TYPE join_mode AS ENUM ('INSTANT', 'APPROVAL');
+CREATE TYPE game_status AS ENUM ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+CREATE TYPE participant_status AS ENUM (
+  'JOINED', 'WAITLISTED', 'PENDING', 'LEFT', 'REMOVED', 'DECLINED'
+);
+CREATE TYPE attendance_status AS ENUM ('UNMARKED', 'ATTENDED', 'NO_SHOW');
+CREATE TYPE message_type AS ENUM ('USER', 'SYSTEM');
+CREATE TYPE report_target AS ENUM ('USER', 'GAME', 'MESSAGE', 'COURT');
+CREATE TYPE report_status AS ENUM ('OPEN', 'RESOLVED', 'DISMISSED');
+CREATE TYPE email_token_type AS ENUM ('VERIFY_EMAIL', 'RESET_PASSWORD');
+
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Down Migration
+
+DROP FUNCTION IF EXISTS set_updated_at();
+
+DROP TYPE IF EXISTS email_token_type;
+DROP TYPE IF EXISTS report_status;
+DROP TYPE IF EXISTS report_target;
+DROP TYPE IF EXISTS message_type;
+DROP TYPE IF EXISTS attendance_status;
+DROP TYPE IF EXISTS participant_status;
+DROP TYPE IF EXISTS game_status;
+DROP TYPE IF EXISTS join_mode;
+DROP TYPE IF EXISTS game_visibility;
+DROP TYPE IF EXISTS game_format;
+DROP TYPE IF EXISTS court_status;
+DROP TYPE IF EXISTS court_surface;
+DROP TYPE IF EXISTS player_position;
+DROP TYPE IF EXISTS user_role;
+
+DROP EXTENSION IF EXISTS btree_gist;
+DROP EXTENSION IF EXISTS citext;
+DROP EXTENSION IF EXISTS pgcrypto;
