@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "migrate": "node --env-file=.env node_modules/.bin/node-pg-migrate up",
     "migrate:down": "node --env-file=.env node_modules/.bin/node-pg-migrate down",
-    "seed": "tsx --env-file=.env src/db/seed.ts"
+    "seed": "tsx --env-file=.env src/db/seed.ts",
+    "migrate:test": "node --env-file=.env node_modules/.bin/node-pg-migrate up --database-url-var DATABASE_URL_TEST"
   },
   "license": "ISC",
   "devDependencies": {

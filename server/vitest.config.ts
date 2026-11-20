@@ -6,7 +6,7 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     env: {
       CLIENT_URL: "http://localhost:5173",
-      DATABASE_URL: "postgres://playbasketball:playbasketball@localhost:5432/playbasketball",
+      DATABASE_URL: "postgres://playbasketball:playbasketball@localhost:5433/playbasketball_test",
       REDIS_URL: "redis://localhost:6379",
     },
   },
