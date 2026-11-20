@@ -3,12 +3,12 @@ import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
 
 export const pool = new pg.Pool({
-    connectionString: env.DATABASE_URL,
-    max: env.DB_POOL_MAX,
+  connectionString: env.DATABASE_URL,
+  max: env.DB_POOL_MAX,
 });
 
 pool.on("error", (err) => {
-    logger.error({ err }, "Unexpected error on idle database client");
+  logger.error({ err }, "Unexpected error on idle database client");
 });
 
 export async function withTransaction<T>(fn: (tx: pg.PoolClient) => Promise<T>): Promise<T> {

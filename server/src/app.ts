@@ -22,7 +22,7 @@ export function createApp() {
     }),
   );
 
-   app.use(helmet());
+  app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/health", (_req, res) => {
