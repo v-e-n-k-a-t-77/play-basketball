@@ -7,6 +7,8 @@ export const pool = new pg.Pool({
   max: env.DB_POOL_MAX,
 });
 
+export type Db = pg.Pool | pg.PoolClient;
+
 pool.on("error", (err) => {
   logger.error({ err }, "Unexpected error on idle database client");
 });
