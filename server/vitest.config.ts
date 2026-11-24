@@ -12,6 +12,7 @@ export default defineConfig({
       REDIS_URL: "redis://localhost:6379",
       JWT_ACCESS_SECRET: "test-secret-test-secret-test-secret-test-secret-1234",
       BCRYPT_COST: "4",
+      EMAIL_PROVIDER: "memory",
     },
   },
 });

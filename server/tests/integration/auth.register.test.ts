@@ -3,8 +3,13 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { pool } from "../../src/db/pool.js";
 import { createApp } from "../../src/app.js";
 import { resetDb } from "../factories.js";
+import { sentEmails } from "../../src/emails/mailer.js";
+import { hashToken } from "../../src/lib/crypto.js";
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  sentEmails.length = 0;
+});
 afterAll(() => pool.end());
 
 const valid = { name: "Ravi Kumar", email: "ravi@example.com", password: "Secret123" };
@@ -87,5 +92,27 @@ describe("POST /api/v1/auth/register", () => {
 
     const { rows } = await pool.query("SELECT id FROM users");
     expect(rows).toHaveLength(1);
+  });
+
+  it("emails a verification link whose token matches the stored hash", async () => {
+    await register(valid);
+
+    expect(sentEmails).toHaveLength(1);
+    const email = sentEmails[0]!;
+    expect(email.to).toBe("ravi@example.com");
+    expect(email.subject).toContain("Verify");
+
+    const token = new URL(email.text.match(/https?:\/\/\S+/)![0]).searchParams.get("token")!;
+    const { rows } = await pool.query("SELECT token_hash FROM email_tokens");
+    expect(rows[0].token_hash).toBe(hashToken(token));
+  });
+
+  it("does not email anyone when the registration fails", async () => {
+    await register(valid);
+    sentEmails.length = 0;
+
+    await register(valid);
+
+    expect(sentEmails).toHaveLength(0);
   });
 });

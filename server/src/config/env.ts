@@ -15,6 +15,10 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  EMAIL_PROVIDER: z.enum(["smtp", "console", "memory"]).default("smtp"),
+  SMTP_HOST: z.string().default("localhost"),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  EMAIL_FROM: z.string().default("Play Basketball <no-reply@playbasketball.dev>"),
 });
 
 const result = envSchema.safeParse(process.env);

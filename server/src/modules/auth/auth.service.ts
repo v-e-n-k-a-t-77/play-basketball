@@ -6,14 +6,19 @@ import { hashPassword } from "../../lib/password.js";
 import * as usersRepo from "../users/users.repository.js";
 import * as authRepo from "./auth.repository.js";
 import type { RegisterInput } from "./auth.schemas.js";
+import { env } from "../../config/env.js";
+import { sendEmail } from "../../emails/mailer.js";
+import { verifyEmail } from "../../emails/templates.js";
+import { logger } from "../../lib/logger.js";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function register(input: RegisterInput) {
   const passwordHash = await hashPassword(input.password);
 
+  let created;
   try {
-    return await withTransaction(async (tx) => {
+    created = await withTransaction(async (tx) => {
       const row = await usersRepo.insertUser(
         { email: input.email, passwordHash, name: input.name },
         tx,
@@ -39,4 +44,17 @@ export async function register(input: RegisterInput) {
     }
     throw err;
   }
+
+  // The user is saved. From here on, a failure must not undo the registration.
+  const link = `${env.CLIENT_URL}/verify-email?token=${created.verificationToken}`;
+  try {
+    await sendEmail({
+      to: created.user.email,
+      ...verifyEmail({ name: created.user.name, link }),
+    });
+  } catch (err) {
+    logger.error({ err, userId: created.user.id }, "Failed to send verification email");
+  }
+
+  return { user: created.user };
 }
