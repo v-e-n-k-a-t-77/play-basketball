@@ -5,6 +5,7 @@ import { logger } from "./lib/logger.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import helmet from "helmet";
+import { authRouter } from "./modules/auth/auth.routes.js";
 
 export function createApp() {
   const app = express();
@@ -28,6 +29,8 @@ export function createApp() {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.use("/api/v1/auth", authRouter);
 
   app.use(notFound);
   app.use(errorHandler);
