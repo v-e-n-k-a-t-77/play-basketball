@@ -85,3 +85,12 @@ export async function createGame(
   );
   return { id, hostId, courtId };
 }
+
+export function tokenFromLink(text: string): string {
+  const match = text.match(/https?:\/\/\S+/);
+  if (!match) throw new Error("No link found in the email");
+
+  const token = new URL(match[0]).searchParams.get("token");
+  if (!token) throw new Error("No token in the link");
+  return token;
+}

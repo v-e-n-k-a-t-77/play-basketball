@@ -58,3 +58,15 @@ export async function register(input: RegisterInput) {
 
   return { user: created.user };
 }
+
+export async function verifyEmailToken(token: string) {
+  const row = await withTransaction(async (tx) => {
+    const userId = await authRepo.consumeEmailToken(hashToken(token), "VERIFY_EMAIL", tx);
+    if (!userId) {
+      throw new AppError(404, "NOT_FOUND", "This verification link is invalid or has expired.");
+    }
+    return usersRepo.markEmailVerified(userId, tx);
+  });
+
+  return { user: usersRepo.toPublicUser(row) };
+}

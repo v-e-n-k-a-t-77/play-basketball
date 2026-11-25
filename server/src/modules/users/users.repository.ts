@@ -66,3 +66,14 @@ export async function insertUser(
 export async function insertProfile(userId: string, db: Db = pool): Promise<void> {
   await db.query("INSERT INTO player_profiles (user_id) VALUES ($1)", [userId]);
 }
+
+export async function markEmailVerified(userId: string, db: Db = pool): Promise<UserRow> {
+  const { rows } = await db.query<UserRow>(
+    `UPDATE users
+    SET email_verified_at = COALESCE(email_verified_at, now())
+    WHERE id = $1
+    RETURNING ${USER_COLUMNS}`,
+    [userId],
+  );
+  return rows[0]!;
+}

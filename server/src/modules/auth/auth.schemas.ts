@@ -11,4 +11,8 @@ export const registerSchema = z.strictObject({
     .regex(/\d/, "Password must contain a digit"),
 });
 
+export const verifyEmailSchema = z.strictObject({
+  token: z.string().min(1).max(200),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
