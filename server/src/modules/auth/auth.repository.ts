@@ -33,3 +33,21 @@ export async function consumeEmailToken(
   );
   return rows[0]?.user_id;
 }
+
+export async function insertRefreshToken(
+  input: {
+    userId: string;
+    familyId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    userAgent: string | null;
+    ip: string | null;
+  },
+  db: Db = pool,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO refresh_tokens (user_id, family_id, token_hash, expires_at, user_agent, ip)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [input.userId, input.familyId, input.tokenHash, input.expiresAt, input.userAgent, input.ip],
+  );
+}

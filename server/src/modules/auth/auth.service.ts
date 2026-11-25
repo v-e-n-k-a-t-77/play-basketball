@@ -10,6 +10,10 @@ import { env } from "../../config/env.js";
 import { sendEmail } from "../../emails/mailer.js";
 import { verifyEmail } from "../../emails/templates.js";
 import { logger } from "../../lib/logger.js";
+import { randomUUID } from "node:crypto";
+import { signAccessToken } from "../../lib/jwt.js";
+import { verifyPassword } from "../../lib/password.js";
+import type { LoginInput } from "./auth.schemas.js";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -69,4 +73,58 @@ export async function verifyEmailToken(token: string) {
   });
 
   return { user: usersRepo.toPublicUser(row) };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const REFRESH_TOKEN_BYTES = 64;
+
+let dummyHash: Promise<string> | undefined;
+function getDummyHash(): Promise<string> {
+  dummyHash ??= hashPassword("not-a-real-password-1");
+  return dummyHash;
+}
+
+type LoginContext = { userAgent: string | null; ip: string | null };
+
+export async function login(input: LoginInput, context: LoginContext) {
+  const user = await usersRepo.findByEmail(input.email);
+
+  // Always run one bcrypt comparison, even for unknown emails, so the response
+  // time does not reveal whether the email exists.
+  const hashToCheck = user?.password_hash ?? (await getDummyHash());
+  const passwordOk = await verifyPassword(input.password, hashToCheck);
+
+  if (!user || !user.password_hash || !passwordOk) {
+    throw new AppError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+  }
+  if (user.is_banned) {
+    throw new AppError(403, "ACCOUNT_BANNED", "This account has been suspended.");
+  }
+
+  const refreshToken = generateToken(REFRESH_TOKEN_BYTES);
+  const refreshExpiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * DAY_MS);
+
+  await withTransaction(async (tx) => {
+    await authRepo.insertRefreshToken(
+      {
+        userId: user.id,
+        familyId: randomUUID(),
+        tokenHash: hashToken(refreshToken),
+        expiresAt: refreshExpiresAt,
+        userAgent: context.userAgent,
+        ip: context.ip,
+      },
+      tx,
+    );
+    await usersRepo.touchLastLogin(user.id, tx);
+  });
+
+  const publicUser = usersRepo.toPublicUser(user);
+  const accessToken = signAccessToken({
+    id: user.id,
+    role: user.role,
+    emailVerified: publicUser.emailVerified,
+  });
+
+  return { accessToken, user: publicUser, refreshToken, refreshExpiresAt };
 }

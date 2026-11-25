@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { pool } from "../src/db/pool.js";
+import { hashPassword } from "../src/lib/password.js";
 
 export async function resetDb(): Promise<void> {
   await pool.query("TRUNCATE users RESTART IDENTITY CASCADE");
@@ -9,15 +10,17 @@ type UserOptions = {
   skill?: number;
   verified?: boolean;
   role?: "PLAYER" | "ADMIN";
+  password?: string;
 };
 
 export async function createUser(opts: UserOptions = {}): Promise<{ id: string; email: string }> {
   const email = `user-${randomUUID()}@test.dev`;
+  const passwordHash = opts.password ? await hashPassword(opts.password) : null;
 
   const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO users (email, name, role, email_verified_at)
-     VALUES ($1, 'Test User', $2, $3) RETURNING id`,
-    [email, opts.role ?? "PLAYER", opts.verified === false ? null : new Date()],
+    `INSERT INTO users (email, password_hash, name, role, email_verified_at)
+     VALUES ($1, $2, 'Test User', $3, $4) RETURNING id`,
+    [email, passwordHash, opts.role ?? "PLAYER", opts.verified === false ? null : new Date()],
   );
   const id = rows[0]!.id;
 

@@ -77,3 +77,7 @@ export async function markEmailVerified(userId: string, db: Db = pool): Promise<
   );
   return rows[0]!;
 }
+
+export async function touchLastLogin(userId: string, db: Db = pool): Promise<void> {
+  await db.query("UPDATE users SET last_login_at = now() WHERE id = $1", [userId]);
+}
