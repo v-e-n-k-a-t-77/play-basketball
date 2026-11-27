@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import helmet from "helmet";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import cookieParser from "cookie-parser";
 
 export function createApp() {
   const app = express();
@@ -25,6 +26,7 @@ export function createApp() {
 
   app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
+  app.use(cookieParser());
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });

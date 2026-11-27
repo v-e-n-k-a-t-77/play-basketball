@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { pool } from "../src/db/pool.js";
 import { hashPassword } from "../src/lib/password.js";
+import request from "supertest";
+import { createApp } from "../src/app.js";
 
 export async function resetDb(): Promise<void> {
   await pool.query("TRUNCATE users RESTART IDENTITY CASCADE");
@@ -96,4 +98,21 @@ export function tokenFromLink(text: string): string {
   const token = new URL(match[0]).searchParams.get("token");
   if (!token) throw new Error("No token in the link");
   return token;
+}
+
+export function cookieValue(res: request.Response): string | undefined {
+  const cookie = (res.get("Set-Cookie") ?? []).find((c) => c.startsWith("pb_rt="));
+  return cookie?.split(";")[0]?.slice("pb_rt=".length);
+}
+
+export async function loginAs(user: { email: string }, password: string) {
+  const res = await request(createApp())
+    .post("/api/v1/auth/login")
+    .send({ email: user.email, password });
+
+  const refreshToken = cookieValue(res);
+  if (res.status !== 200 || !refreshToken) {
+    throw new Error(`Login failed with status ${res.status}`);
+  }
+  return { accessToken: res.body.accessToken as string, refreshToken };
 }

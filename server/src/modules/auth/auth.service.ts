@@ -1,19 +1,18 @@
-import { withTransaction } from "../../db/pool.js";
-import { isUniqueViolation } from "../../db/pgErrors.js";
-import { generateToken, hashToken } from "../../lib/crypto.js";
-import { AppError } from "../../lib/errors.js";
-import { hashPassword } from "../../lib/password.js";
-import * as usersRepo from "../users/users.repository.js";
-import * as authRepo from "./auth.repository.js";
-import type { RegisterInput } from "./auth.schemas.js";
+import { randomUUID } from "node:crypto";
 import { env } from "../../config/env.js";
+import { isUniqueViolation } from "../../db/pgErrors.js";
+import { withTransaction } from "../../db/pool.js";
 import { sendEmail } from "../../emails/mailer.js";
 import { verifyEmail } from "../../emails/templates.js";
-import { logger } from "../../lib/logger.js";
-import { randomUUID } from "node:crypto";
+import { generateToken, hashToken } from "../../lib/crypto.js";
+import { AppError } from "../../lib/errors.js";
 import { signAccessToken } from "../../lib/jwt.js";
-import { verifyPassword } from "../../lib/password.js";
-import type { LoginInput } from "./auth.schemas.js";
+import { logger } from "../../lib/logger.js";
+import { hashPassword, verifyPassword } from "../../lib/password.js";
+import * as usersRepo from "../users/users.repository.js";
+import type { UserRow } from "../users/users.repository.js";
+import * as authRepo from "./auth.repository.js";
+import type { LoginInput, RegisterInput } from "./auth.schemas.js";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -86,6 +85,16 @@ function getDummyHash(): Promise<string> {
 
 type LoginContext = { userAgent: string | null; ip: string | null };
 
+function sessionFor(user: UserRow) {
+  const publicUser = usersRepo.toPublicUser(user);
+  const accessToken = signAccessToken({
+    id: user.id,
+    role: user.role,
+    emailVerified: publicUser.emailVerified,
+  });
+  return { accessToken, user: publicUser };
+}
+
 export async function login(input: LoginInput, context: LoginContext) {
   const user = await usersRepo.findByEmail(input.email);
 
@@ -119,12 +128,88 @@ export async function login(input: LoginInput, context: LoginContext) {
     await usersRepo.touchLastLogin(user.id, tx);
   });
 
-  const publicUser = usersRepo.toPublicUser(user);
-  const accessToken = signAccessToken({
-    id: user.id,
-    role: user.role,
-    emailVerified: publicUser.emailVerified,
+  return { ...sessionFor(user), refreshToken, refreshExpiresAt };
+}
+
+type RefreshOutcome =
+  | { kind: "invalid" }
+  | { kind: "reused"; userId: string; familyId: string }
+  | { kind: "banned" }
+  | { kind: "grace"; user: UserRow }
+  | { kind: "rotated"; user: UserRow; refreshToken: string; expiresAt: Date };
+
+export async function refresh(rawToken: string | undefined, context: LoginContext) {
+  if (!rawToken) {
+    throw new AppError(401, "NO_REFRESH_TOKEN", "No refresh token was provided.");
+  }
+
+  const outcome = await withTransaction(async (tx): Promise<RefreshOutcome> => {
+    const token = await authRepo.findRefreshTokenForUpdate(hashToken(rawToken), tx);
+    if (!token) return { kind: "invalid" };
+
+    if (token.revoked_at !== null) {
+      if (token.within_grace && token.replaced_by) {
+        const replacement = await authRepo.findRefreshTokenById(token.replaced_by, tx);
+        const owner = await usersRepo.findById(token.user_id, tx);
+        if (
+          replacement &&
+          replacement.revoked_at === null &&
+          !replacement.is_expired &&
+          owner &&
+          !owner.is_banned
+        ) {
+          return { kind: "grace", user: owner };
+        }
+      }
+      await authRepo.revokeFamily(token.family_id, tx);
+      return { kind: "reused", userId: token.user_id, familyId: token.family_id };
+    }
+
+    if (token.is_expired) return { kind: "invalid" };
+
+    const user = await usersRepo.findById(token.user_id, tx);
+    if (!user) return { kind: "invalid" };
+    if (user.is_banned) {
+      await authRepo.revokeFamily(token.family_id, tx);
+      return { kind: "banned" };
+    }
+
+    const refreshToken = generateToken(REFRESH_TOKEN_BYTES);
+    const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * DAY_MS);
+    const newId = await authRepo.insertRefreshToken(
+      {
+        userId: user.id,
+        familyId: token.family_id,
+        tokenHash: hashToken(refreshToken),
+        expiresAt,
+        userAgent: context.userAgent,
+        ip: context.ip,
+      },
+      tx,
+    );
+    await authRepo.markRefreshTokenReplaced(token.id, newId, tx);
+
+    return { kind: "rotated", user, refreshToken, expiresAt };
   });
 
-  return { accessToken, user: publicUser, refreshToken, refreshExpiresAt };
+  if (outcome.kind === "invalid") {
+    throw new AppError(401, "INVALID_REFRESH_TOKEN", "The refresh token is invalid or expired.");
+  }
+  if (outcome.kind === "reused") {
+    logger.warn(
+      { userId: outcome.userId, familyId: outcome.familyId },
+      "auth.refresh_reuse_detected",
+    );
+    throw new AppError(401, "REFRESH_TOKEN_REUSED", "This session is no longer valid.");
+  }
+  if (outcome.kind === "banned") {
+    throw new AppError(403, "ACCOUNT_BANNED", "This account has been suspended.");
+  }
+  if (outcome.kind === "grace") {
+    return { ...sessionFor(outcome.user), rotation: null };
+  }
+  return {
+    ...sessionFor(outcome.user),
+    rotation: { token: outcome.refreshToken, expiresAt: outcome.expiresAt },
+  };
 }
